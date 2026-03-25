@@ -1,11 +1,17 @@
 """FastAPI application entrypoint."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 from app.api.routes import competitors, health
 from app.core.logging import setup_logging
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=str(_PROJECT_ROOT / "templates"))
 
 
 @asynccontextmanager
@@ -21,5 +27,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.mount("/static", StaticFiles(directory=str(_PROJECT_ROOT / "static")), name="static")
 app.include_router(health.router)
 app.include_router(competitors.router)
+
+
+@app.get("/")
+def ui_index(request: Request):
+    """Lightweight demo UI (HTML + CSS + JS)."""
+    return templates.TemplateResponse(request, "index.html")
+
+
+@app.get("/ui", include_in_schema=False)
+def ui_alias(request: Request):
+    """Alternate path for the same demo page."""
+    return templates.TemplateResponse(request, "index.html")

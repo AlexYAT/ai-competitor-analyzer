@@ -41,10 +41,29 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Документация: http://127.0.0.1:8000/docs
 
+## Web UI (MVP demo)
+
+Лёгкий интерфейс **HTML + CSS + vanilla JS** (без React/Vue), шаблон Jinja2 + статика:
+
+- **http://127.0.0.1:8000/** — главная страница демо
+- **http://127.0.0.1:8000/ui** — то же содержимое (алиас)
+
+Браузер вызывает те же API, что и `curl`:
+
+- **Поиск:** `POST /find-competitors` (ниша, `site_type`, опционально регион, `max_results`)
+- **Отчёт по выбранным URL:** `POST /reportdemo` (тяжёлый: Selenium + LLM на каждый URL)
+
+Отдельного adapter/orchestration endpoint для UI **не добавлялось**.
+
+**Контракт UI:** интерфейс рассчитан на **API contract v1** для ответов `POST /find-competitors` и `POST /reportdemo` (поля вроде `filtered_results`, `query_used`, `items`, `summary`). При изменении схем ответов нужно синхронно править `static/app.js`.
+
 ## Эндпоинты
 
 | Метод | Путь | Описание |
 |--------|------|-------------|
+| GET | `/` | Демо UI (страница) |
+| GET | `/ui` | Демо UI (алиас) |
+| GET | `/static/*` | CSS/JS |
 | GET | `/health` | Liveness |
 | POST | `/find-competitors` | Brave → опционально LLM-фильтр |
 | POST | `/parsedemo` | Selenium: страница + скриншот |
@@ -63,7 +82,7 @@ curl -s -X POST http://127.0.0.1:8000/reportdemo -H "Content-Type: application/j
 
 ## Что уже сделано
 
-Discovery v1, LLM Filter v1, Selenium Parsing v1, AI Analysis v1, **Report Service v1** (`build_market_report`, `/reportdemo`). Тесты с моками.
+Discovery v1, LLM Filter v1, Selenium Parsing v1, AI Analysis v1, **Report Service v1**, минимальный **Web UI** на `/` и `/ui`. Тесты с моками + smoke для HTML.
 
 ## Дальше
 

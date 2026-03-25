@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Competitor Analyzer — Demo</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <h1>AI Competitor Analyzer</h1>
+      <p class="tagline">Поиск конкурентов и сводный отчёт (MVP demo)</p>
+    </header>
+
+    <section class="card">
+      <h2>Поиск</h2>
+      <div class="form-grid">
+        <label class="field">
+          <span>Ниша / запрос</span>
+          <input type="text" id="niche" placeholder="Например: CRM для малого бизнеса" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Тип сайта (SiteType)</span>
+          <select id="site_type">
+            <option value="landing">landing</option>
+            <option value="multi_page_service_site">multi_page_service_site</option>
+            <option value="personal_brand_site">personal_brand_site</option>
+            <option value="blog">blog</option>
+            <option value="directory">directory</option>
+            <option value="marketplace">marketplace</option>
+            <option value="social_page">social_page</option>
+            <option value="irrelevant">irrelevant</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Регион (необязательно)</span>
+          <input type="text" id="region" placeholder="Россия, EU…" />
+        </label>
+        <label class="field field-narrow">
+          <span>Макс. результатов</span>
+          <input type="number" id="max_results" value="10" min="1" max="50" />
+        </label>
+      </div>
+      <div class="actions">
+        <button type="button" id="btn-find" class="btn btn-primary">Найти конкурентов</button>
+      </div>
+      <p id="status-find" class="status" aria-live="polite"></p>
+      <p id="error-find" class="error" role="alert"></p>
+    </section>
+
+    <section class="card" id="results-section" hidden>
+      <h2>Результаты</h2>
+      <p class="hint">Отметьте сайты для отчёта (нужны <code>OPENAI_API_KEY</code> и Selenium для <code>/reportdemo</code>).</p>
+      <div id="results-list" class="results-list"></div>
+      <div class="actions">
+        <button type="button" id="btn-analyze" class="btn btn-secondary" disabled>Анализировать выбранных</button>
+      </div>
+      <p id="status-analyze" class="status" aria-live="polite"></p>
+      <p id="error-analyze" class="error" role="alert"></p>
+    </section>
+
+    <section class="card" id="report-section" hidden>
+      <h2>Отчёт</h2>
+      <div id="report-out" class="report"></div>
+    </section>
+
+    <footer class="footer">
+      API: <code>/find-competitors</code>, <code>/reportdemo</code> — тот же backend, без отдельного orchestration-эндпоинта.
+    </footer>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
