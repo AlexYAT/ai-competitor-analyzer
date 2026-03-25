@@ -148,18 +148,7 @@ def report_demo(
             detail="OPENAI_API_KEY is not configured. Market report requires an LLM API key.",
         )
 
-    try:
-        return build_market_report(body.urls, settings, llm_client)
-    except ParsingError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
-    except ExternalServiceError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
+    return build_market_report(body.urls, settings, llm_client, lang=body.lang)
 
 
 @router.post("/analyze-competitors", response_model=AnalyzeCompetitorsResponse)

@@ -255,6 +255,11 @@ body {
   background: #121a26;
 }
 
+.report .item-card.item-failed {
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(248, 113, 113, 0.06);
+}
+
 .report .scores {
   font-size: 0.85rem;
   color: var(--muted);

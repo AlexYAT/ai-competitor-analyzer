@@ -14,7 +14,7 @@ User Input → Brave Search → LLM Filter → Selection → Parsing → AI Anal
 4. **Selection** — User or rules choose URLs for deep analysis (future endpoint or parameter).
 5. **Parsing** — `parsing_service.parse_page` (Selenium v1: title, meta, h1, visible text, screenshot).
 6. **AI Analysis** — `analysis_service` produces structured insights per competitor.
-7. **Report** — `report_service.build_market_report` (`/reportdemo`): per-URL parse+analyze, then LLM market summary.
+7. **Report** — `report_service.build_market_report` (`/reportdemo`): per-URL parse+analyze, then LLM market summary; язык генерации задаётся полем `lang` запроса (по умолчанию `ru`).
 
 ## Layers
 

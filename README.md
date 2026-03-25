@@ -13,7 +13,12 @@ Production-подобный **каркас** бэкенда MVP: поиск ко
 
 ### Структура `POST /reportdemo`
 
-- **`items`**: список `MarketReportItem` (на каждый URL — те же поля, что у одиночного анализа: `url`, `final_url`, `title`, `positioning`, `offer`, `target_audience`, `strengths`, `weaknesses`, `design_score`, `animation_potential`, `summary`).
+- **`urls`** (обязательно): список строк — URL страниц конкурентов.
+- **`lang`** (опционально, по умолчанию `ru`): язык генерации отчёта (тексты LLM и пользовательские fallback-сообщения для `reportdemo`). Поддерживаются в первую очередь `ru` и `en` (`en-GB` / `en-US` трактуются как английский); прочие значения нормализуются к `ru`.
+- **`items`**: дискриминированный список по полю `status`:
+  - **`ok`** — `url`, `analysis` (объект как `MarketReportItem`: `final_url`, `title`, поля анализа и скоры).
+  - **`failed`** — `url`, `reason` (`timeout` \| `selenium_error` \| `invalid_url` \| `llm_error`), `message` (краткий текст без stack trace).
+  Часть URL может завершиться с `failed`, ответ **200** и сводка строится по успешным карточкам (если они есть).
 - **`summary`**: `ReportSummary` — **market-level analysis**:
   - `market_summary` — краткое текстовое резюме рынка;
   - `common_strengths` / `common_weaknesses` — повторяющиеся темы;

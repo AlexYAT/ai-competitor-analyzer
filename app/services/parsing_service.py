@@ -21,7 +21,7 @@ _VISIBLE_TEXT_MAX_CHARS = 18_000
 def _normalize_page_url(url: str) -> str:
     u = url.strip()
     if not u:
-        raise ParsingError("URL is empty.")
+        raise ParsingError("URL is empty.", reason_code="invalid_url")
     if not u.startswith(("http://", "https://")):
         u = f"https://{u}"
     return u
@@ -115,10 +115,22 @@ def parse_page(url: str, settings: Settings) -> ParsedPageData:
             visible_text=visible,
             screenshot_path=screenshot_rel,
         )
-    except TimeoutException as exc:
-        raise ParsingError(f"Page load or wait timed out: {exc}") from exc
+    except TimeoutException:
+        raise ParsingError(
+            "The page took too long to load.",
+            reason_code="timeout",
+        ) from None
     except WebDriverException as exc:
-        raise ParsingError(f"Browser error: {exc}") from exc
+        low = str(exc).lower()
+        if "timed out" in low or "timeout" in low or "renderer" in low:
+            raise ParsingError(
+                "The browser stopped responding while loading the page.",
+                reason_code="timeout",
+            ) from None
+        raise ParsingError(
+            "Could not load the page in the browser.",
+            reason_code="selenium_error",
+        ) from None
     finally:
         if driver is not None:
             driver.quit()

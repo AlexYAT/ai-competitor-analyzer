@@ -53,6 +53,15 @@
       <h2>Результаты</h2>
       <p class="hint">Отметьте сайты для отчёта (нужны <code>OPENAI_API_KEY</code> и Selenium для <code>/reportdemo</code>).</p>
       <div id="results-list" class="results-list"></div>
+      <div class="form-grid report-lang-row">
+        <label class="field">
+          <span>Язык отчёта</span>
+          <select id="report_lang">
+            <option value="ru" selected>Русский</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+      </div>
       <div class="actions">
         <button type="button" id="btn-analyze" class="btn btn-secondary" disabled>Анализировать выбранных</button>
       </div>

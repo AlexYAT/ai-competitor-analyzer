@@ -15,6 +15,7 @@
   const resultsList = $("results-list");
   const reportSection = $("report-section");
   const reportOut = $("report-out");
+  const reportLang = $("report_lang");
 
   let lastResults = [];
   let isBusy = false;
@@ -122,6 +123,20 @@
     return urls;
   }
 
+  const REPORT_FAIL_LABELS = {
+    timeout: "Не удалось загрузить страницу (таймаут)",
+    selenium_error: "Ошибка браузера при загрузке",
+    invalid_url: "Некорректный URL",
+    llm_error: "Ошибка анализа (LLM)",
+  };
+
+  function reportFailLabel(reason, message) {
+    const base = REPORT_FAIL_LABELS[reason];
+    if (base && message) return `${base}: ${message}`;
+    if (base) return base;
+    return message || reason || "Ошибка";
+  }
+
   function renderReport(data) {
     const { items = [], summary } = data;
     let html = "";
@@ -146,17 +161,27 @@
 
     html += `<h3>Карточки конкурентов</h3>`;
     items.forEach((it) => {
-      const linkUrl = it.final_url || it.url;
+      if (it.status === "failed") {
+        const msg = reportFailLabel(it.reason, it.message || "");
+        html += `<div class="item-card item-failed">
+          <p class="result-url"><strong>Не обработано</strong></p>
+          ${urlLineHtml(it.url)}
+          <p>${escapeHtml(msg)}</p>
+        </div>`;
+        return;
+      }
+      const a = it.analysis || {};
+      const linkUrl = a.final_url || a.url || it.url;
       html += `<div class="item-card">
-        <strong>${escapeHtml(it.title)}</strong>
+        <strong>${escapeHtml(a.title || "")}</strong>
         ${urlLineHtml(linkUrl)}
-        <p><strong>Позиционирование:</strong> ${escapeHtml(it.positioning || "")}</p>
-        <p><strong>Оффер:</strong> ${escapeHtml(it.offer || "")}</p>
-        <p><strong>Аудитория:</strong> ${escapeHtml(it.target_audience || "")}</p>
-        <p class="scores">design_score: ${escapeHtml(String(it.design_score))} · animation_potential: ${escapeHtml(String(it.animation_potential))}</p>
-        <p><strong>Сильные стороны:</strong></p><ul>${(it.strengths || []).map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>
-        <p><strong>Слабости:</strong></p><ul>${(it.weaknesses || []).map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>
-        <p>${escapeHtml(it.summary || "")}</p>
+        <p><strong>Позиционирование:</strong> ${escapeHtml(a.positioning || "")}</p>
+        <p><strong>Оффер:</strong> ${escapeHtml(a.offer || "")}</p>
+        <p><strong>Аудитория:</strong> ${escapeHtml(a.target_audience || "")}</p>
+        <p class="scores">design_score: ${escapeHtml(String(a.design_score))} · animation_potential: ${escapeHtml(String(a.animation_potential))}</p>
+        <p><strong>Сильные стороны:</strong></p><ul>${(a.strengths || []).map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>
+        <p><strong>Слабости:</strong></p><ul>${(a.weaknesses || []).map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>
+        <p>${escapeHtml(a.summary || "")}</p>
       </div>`;
     });
 
@@ -216,7 +241,8 @@
     statusAnalyze.textContent = "Анализ и отчёт (Selenium + LLM)…";
 
     try {
-      const data = await postJson("/reportdemo", { urls });
+      const lang = (reportLang && reportLang.value) || "ru";
+      const data = await postJson("/reportdemo", { urls, lang });
       renderReport(data);
       statusAnalyze.textContent = "Готово.";
     } catch (e) {

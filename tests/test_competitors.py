@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app.api.dependencies import get_brave_client, get_llm_client, get_settings
 from app.clients.brave_client import BraveSearchClient
 from app.core.config import Settings
+from app.core.exceptions import ParsingError
 from app.main import app
 from app.models.enums import SiteType
 from app.models.schemas import (
@@ -15,6 +16,7 @@ from app.models.schemas import (
     CompetitorCandidate,
     MarketReportItem,
     ParsedPageData,
+    ReportDemoItemOk,
     ReportDemoResponse,
     ReportSummary,
 )
@@ -172,34 +174,47 @@ def test_reportdemo_mocked(
     client_with_openai: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_build(urls: list[str], settings: Settings, llm: Any) -> ReportDemoResponse:
+    def fake_build(
+        urls: list[str],
+        settings: Settings,
+        llm: Any,
+        *,
+        lang: str = "ru",
+    ) -> ReportDemoResponse:
         assert len(urls) == 2
+        assert lang == "ru"
         items = [
-            MarketReportItem(
+            ReportDemoItemOk(
                 url="https://a.example",
-                final_url="https://a.example/",
-                title="A",
-                positioning="Pos A",
-                offer="Off A",
-                target_audience="TA",
-                strengths=["s1"],
-                weaknesses=["w1"],
-                design_score=5.0,
-                animation_potential=6.0,
-                summary="Sum A",
+                analysis=MarketReportItem(
+                    url="https://a.example",
+                    final_url="https://a.example/",
+                    title="A",
+                    positioning="Pos A",
+                    offer="Off A",
+                    target_audience="TA",
+                    strengths=["s1"],
+                    weaknesses=["w1"],
+                    design_score=5.0,
+                    animation_potential=6.0,
+                    summary="Sum A",
+                ),
             ),
-            MarketReportItem(
+            ReportDemoItemOk(
                 url="https://b.example",
-                final_url="https://b.example/",
-                title="B",
-                positioning="Pos B",
-                offer="Off B",
-                target_audience="TB",
-                strengths=["s2"],
-                weaknesses=["w2"],
-                design_score=7.0,
-                animation_potential=4.0,
-                summary="Sum B",
+                analysis=MarketReportItem(
+                    url="https://b.example",
+                    final_url="https://b.example/",
+                    title="B",
+                    positioning="Pos B",
+                    offer="Off B",
+                    target_audience="TB",
+                    strengths=["s2"],
+                    weaknesses=["w2"],
+                    design_score=7.0,
+                    animation_potential=4.0,
+                    summary="Sum B",
+                ),
             ),
         ]
         summary = ReportSummary(
@@ -223,6 +238,106 @@ def test_reportdemo_mocked(
     assert sm["common_strengths"] == ["Shared strength"]
     assert sm["common_weaknesses"] == ["Shared weakness"]
     assert sm["differentiation_opportunities"] == ["Do X differently"]
+
+
+def test_reportdemo_accepts_lang_and_passes_to_build(
+    client_with_openai: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, str] = {}
+
+    def fake_build(
+        urls: list[str],
+        settings: Settings,
+        llm: Any,
+        *,
+        lang: str = "ru",
+    ) -> ReportDemoResponse:
+        captured["lang"] = lang
+        return ReportDemoResponse(
+            items=[],
+            summary=ReportSummary(
+                market_summary="—",
+                common_strengths=[],
+                common_weaknesses=[],
+                differentiation_opportunities=[],
+            ),
+        )
+
+    monkeypatch.setattr("app.api.routes.competitors.build_market_report", fake_build)
+    r1 = client_with_openai.post("/reportdemo", json={"urls": ["https://a.example"], "lang": "en"})
+    assert r1.status_code == 200
+    assert captured["lang"] == "en"
+
+    r2 = client_with_openai.post("/reportdemo", json={"urls": ["https://a.example"]})
+    assert r2.status_code == 200
+    assert captured["lang"] == "ru"
+
+
+def test_reportdemo_partial_parse_failure(client_with_openai: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    parsed_ok = ParsedPageData(
+        requested_url="https://good.example/",
+        final_url="https://good.example/",
+        title="G",
+        meta_description=None,
+        h1="H",
+        visible_text="body",
+        screenshot_path=None,
+    )
+
+    def fake_parse(u: str, settings: Settings) -> ParsedPageData:
+        if "bad.example" in u:
+            raise ParsingError("The page took too long to load.", reason_code="timeout")
+        return parsed_ok
+
+    def fake_analyze(
+        llm: Any,
+        p: ParsedPageData,
+        *,
+        output_lang: str | None = None,
+    ) -> CompetitorAnalysisResult:
+        assert p.title == "G"
+        return CompetitorAnalysisResult(
+            url=p.requested_url,
+            final_url=p.final_url,
+            title=p.title,
+            positioning="p",
+            offer="o",
+            target_audience="t",
+            strengths=["s"],
+            weaknesses=["w"],
+            design_score=5.0,
+            animation_potential=5.0,
+            summary="one",
+        )
+
+    class MarketSummaryLLM:
+        def chat_json(self, system_prompt: str, user_prompt: str) -> dict[str, Any]:
+            return {
+                "market_summary": "Synopsis.",
+                "common_strengths": ["cs"],
+                "common_weaknesses": ["cw"],
+                "differentiation_opportunities": ["diff"],
+            }
+
+    app.dependency_overrides[get_llm_client] = lambda: MarketSummaryLLM()  # type: ignore[return-value]
+    monkeypatch.setattr("app.services.report_service.parse_page", fake_parse)
+    monkeypatch.setattr("app.services.report_service.analyze_competitor_page", fake_analyze)
+
+    response = client_with_openai.post(
+        "/reportdemo",
+        json={"urls": ["https://bad.example/", "https://good.example/"]},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    assert data["items"][0]["status"] == "failed"
+    assert data["items"][0]["reason"] == "timeout"
+    assert data["items"][0]["message"]
+    assert data["items"][1]["status"] == "ok"
+    assert data["items"][1]["analysis"]["title"] == "G"
+    assert data["summary"]["market_summary"] == "Synopsis."
 
 
 def test_analyze_competitor_mocked(

@@ -1,5 +1,7 @@
 """Pydantic request/response models for the API."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, HttpUrl
 
 from app.models.enums import SiteType
@@ -84,6 +86,12 @@ class CompetitorAnalysisResponse(BaseModel):
 
 class ReportDemoRequest(BaseModel):
     urls: list[str] = Field(..., min_length=1, description="Competitor page URLs to parse and analyze")
+    lang: str = Field(
+        default="ru",
+        min_length=2,
+        max_length=16,
+        description="Report output language code (e.g. ru, en). Unsupported codes fall back to ru.",
+    )
 
 
 class MarketReportItem(BaseModel):
@@ -100,6 +108,26 @@ class MarketReportItem(BaseModel):
     summary: str
 
 
+class ReportDemoItemOk(BaseModel):
+    """Successfully parsed and analyzed competitor page."""
+
+    status: Literal["ok"] = "ok"
+    url: str
+    analysis: MarketReportItem
+
+
+class ReportDemoItemFailed(BaseModel):
+    """Parse or per-site analysis failed; URL listed for transparency."""
+
+    status: Literal["failed"] = "failed"
+    url: str
+    reason: str = Field(
+        ...,
+        description="timeout | selenium_error | llm_error | invalid_url",
+    )
+    message: str = Field(default="", description="Short user-safe explanation")
+
+
 class ReportSummary(BaseModel):
     market_summary: str
     common_strengths: list[str]
@@ -108,5 +136,5 @@ class ReportSummary(BaseModel):
 
 
 class ReportDemoResponse(BaseModel):
-    items: list[MarketReportItem]
+    items: list[ReportDemoItemOk | ReportDemoItemFailed]
     summary: ReportSummary

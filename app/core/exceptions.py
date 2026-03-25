@@ -10,7 +10,16 @@ class ExternalServiceError(AppError):
 
 
 class ParsingError(AppError):
-    """Raised when Selenium / page extraction fails."""
+    """Raised when Selenium / page extraction fails.
+
+    ``message`` must be short and safe to show to end users (no stack traces).
+    ``reason_code`` is used by callers (e.g. report) for structured fallbacks:
+    ``timeout``, ``selenium_error``, ``invalid_url``.
+    """
+
+    def __init__(self, message: str, *, reason_code: str = "selenium_error") -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
 
 
 class ConfigurationError(AppError):

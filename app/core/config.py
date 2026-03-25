@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4o-mini"
 
     SELENIUM_HEADLESS: bool = True
-    SELENIUM_PAGELOAD_TIMEOUT: int = 25
+    SELENIUM_PAGELOAD_TIMEOUT: int = 15
     SELENIUM_WAIT_TIMEOUT: int = 10
     PARSED_SCREENSHOTS_DIR: str = "data/screenshots"
 

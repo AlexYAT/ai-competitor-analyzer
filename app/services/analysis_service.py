@@ -6,7 +6,7 @@ from app.clients.llm_client import LLMClient
 from app.core.exceptions import ExternalServiceError
 from app.models.schemas import CompetitorAnalysisResult, ParsedPageData
 
-ANALYSIS_SYSTEM_PROMPT = """You analyze a single competitor landing page using ONLY the text fields provided.
+ANALYSIS_SYSTEM_PROMPT_EN = """You analyze a single competitor landing page using ONLY the text fields provided.
 Be practical and concise, not academic.
 
 Rules:
@@ -27,6 +27,46 @@ Output: a single JSON object with exactly these keys and types:
 - summary: string (2–4 sentences)
 
 No markdown, no code fences, no extra keys."""
+
+ANALYSIS_SYSTEM_PROMPT_RU = """Вы анализируете одну лендинговую страницу конкурента, используя ТОЛЬКО переданные текстовые поля.
+Пишите практично и кратко, без академизма.
+
+Правила:
+- Не выдумывайте факты, названия компаний, цифры и утверждения, которых нет во входных данных.
+- Если текста мало, кратко укажите неопределённость и формулируйте выводы осторожно.
+- strengths и weaknesses — короткие пункты (не длиннее ~120 символов каждый), опираясь на текст страницы.
+- design_score: субъективно 0–10 по структуре, ясности оффера, заголовкам и ощущению «доведённости» текста (без реальной оценки картинок и скриншотов).
+- animation_potential: 0–10 — насколько странице могла бы помочь анимация, микровзаимодействия или сильнее визуальное повествование (только по тексту и пробелам в подаче).
+
+ВАЖНО: Все строковые поля ответа (positioning, offer, target_audience, элементы strengths и weaknesses, summary) должны быть НА РУССКОМ ЯЗЫКЕ.
+
+Вывод: один JSON-объект, без markdown, ровно с такими ключами и типами:
+- positioning: string
+- offer: string
+- target_audience: string
+- strengths: array of strings
+- weaknesses: array of strings
+- design_score: number between 0 and 10
+- animation_potential: number between 0 and 10
+- summary: string (2–4 предложения на русском)
+
+Без лишних ключей."""
+
+
+def _analysis_locale(output_lang: str | None) -> str:
+    if output_lang is None:
+        return "en"
+    code = output_lang.strip().lower()
+    if code in ("en", "en-gb", "en-us"):
+        return "en"
+    return "ru"
+
+
+def analysis_system_prompt_for_locale(locale: str) -> str:
+    """System prompt for per-page analysis (extensible: add locales here)."""
+    if locale == "en":
+        return ANALYSIS_SYSTEM_PROMPT_EN
+    return ANALYSIS_SYSTEM_PROMPT_RU
 
 
 def _req_str(data: dict[str, Any], key: str) -> str:
@@ -57,9 +97,21 @@ def _score_0_10(data: dict[str, Any], key: str) -> float:
     return max(0.0, min(10.0, x))
 
 
-def _build_user_prompt(parsed: ParsedPageData) -> str:
-    meta = parsed.meta_description or "(none)"
-    h1 = parsed.h1 or "(none)"
+def _build_user_prompt(parsed: ParsedPageData, locale: str) -> str:
+    meta = parsed.meta_description or ("(none)" if locale == "en" else "(нет)")
+    h1 = parsed.h1 or ("(none)" if locale == "en" else "(нет)")
+    if locale == "ru":
+        return f"""Проанализируйте страницу.
+
+final_url: {parsed.final_url}
+title: {parsed.title}
+meta_description: {meta}
+h1: {h1}
+
+visible_text:
+{parsed.visible_text}
+
+Верните только JSON-объект, как в системном сообщении."""
     return f"""Analyze this page.
 
 final_url: {parsed.final_url}
@@ -76,13 +128,21 @@ Return only the JSON object as specified in the system message."""
 def analyze_competitor_page(
     llm_client: LLMClient,
     parsed_page: ParsedPageData,
+    *,
+    output_lang: str | None = None,
 ) -> CompetitorAnalysisResult:
     """Run LLM analysis on parsed text fields and return a structured result.
+
+    ``output_lang`` controls the LLM output language for string fields. ``None`` keeps
+    English (for ``/analyze-competitor``). Pass *ru* or *en* from ``/reportdemo``
+    via ``build_market_report``.
 
     Raises:
         ExternalServiceError: On bad LLM JSON or invalid field types.
     """
-    raw = llm_client.chat_json(ANALYSIS_SYSTEM_PROMPT, _build_user_prompt(parsed_page))
+    loc = _analysis_locale(output_lang)
+    system = analysis_system_prompt_for_locale(loc)
+    raw = llm_client.chat_json(system, _build_user_prompt(parsed_page, loc))
 
     positioning = _req_str(raw, "positioning")
     offer = _req_str(raw, "offer")
