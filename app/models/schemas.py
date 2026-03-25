@@ -80,3 +80,33 @@ class CompetitorAnalysisResult(BaseModel):
 
 class CompetitorAnalysisResponse(BaseModel):
     result: CompetitorAnalysisResult
+
+
+class ReportDemoRequest(BaseModel):
+    urls: list[str] = Field(..., min_length=1, description="Competitor page URLs to parse and analyze")
+
+
+class MarketReportItem(BaseModel):
+    url: str
+    final_url: str
+    title: str
+    positioning: str
+    offer: str
+    target_audience: str
+    strengths: list[str]
+    weaknesses: list[str]
+    design_score: float = Field(..., ge=0.0, le=10.0)
+    animation_potential: float = Field(..., ge=0.0, le=10.0)
+    summary: str
+
+
+class ReportSummary(BaseModel):
+    market_summary: str
+    common_strengths: list[str]
+    common_weaknesses: list[str]
+    differentiation_opportunities: list[str]
+
+
+class ReportDemoResponse(BaseModel):
+    items: list[MarketReportItem]
+    summary: ReportSummary

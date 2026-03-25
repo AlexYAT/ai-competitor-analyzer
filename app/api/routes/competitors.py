@@ -18,11 +18,14 @@ from app.models.schemas import (
     FindCompetitorsResponse,
     ParseDemoRequest,
     ParseDemoResponse,
+    ReportDemoRequest,
+    ReportDemoResponse,
 )
 from app.services.analysis_service import analyze_competitor_page
 from app.services.competitor_filter_service import filter_competitors_with_llm
 from app.services.discovery_service import discover_competitors
 from app.services.parsing_service import parse_page
+from app.services.report_service import build_market_report
 
 router = APIRouter(tags=["competitors"])
 
@@ -130,6 +133,33 @@ def analyze_competitor(
         ) from exc
 
     return CompetitorAnalysisResponse(result=result)
+
+
+@router.post("/reportdemo", response_model=ReportDemoResponse)
+def report_demo(
+    body: ReportDemoRequest,
+    settings: Annotated[Settings, Depends(get_settings)],
+    llm_client: Annotated[LLMClient, Depends(get_llm_client)],
+) -> ReportDemoResponse:
+    """Build a market-level report: parse + per-URL analysis, then cross-competitor LLM summary."""
+    if not (settings.OPENAI_API_KEY or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OPENAI_API_KEY is not configured. Market report requires an LLM API key.",
+        )
+
+    try:
+        return build_market_report(body.urls, settings, llm_client)
+    except ParsingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+    except ExternalServiceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
 
 
 @router.post("/analyze-competitors", response_model=AnalyzeCompetitorsResponse)

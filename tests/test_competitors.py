@@ -13,7 +13,10 @@ from app.models.enums import SiteType
 from app.models.schemas import (
     CompetitorAnalysisResult,
     CompetitorCandidate,
+    MarketReportItem,
     ParsedPageData,
+    ReportDemoResponse,
+    ReportSummary,
 )
 from app.services import competitor_filter_service
 
@@ -163,6 +166,63 @@ def client_with_openai():
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+def test_reportdemo_mocked(
+    client_with_openai: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_build(urls: list[str], settings: Settings, llm: Any) -> ReportDemoResponse:
+        assert len(urls) == 2
+        items = [
+            MarketReportItem(
+                url="https://a.example",
+                final_url="https://a.example/",
+                title="A",
+                positioning="Pos A",
+                offer="Off A",
+                target_audience="TA",
+                strengths=["s1"],
+                weaknesses=["w1"],
+                design_score=5.0,
+                animation_potential=6.0,
+                summary="Sum A",
+            ),
+            MarketReportItem(
+                url="https://b.example",
+                final_url="https://b.example/",
+                title="B",
+                positioning="Pos B",
+                offer="Off B",
+                target_audience="TB",
+                strengths=["s2"],
+                weaknesses=["w2"],
+                design_score=7.0,
+                animation_potential=4.0,
+                summary="Sum B",
+            ),
+        ]
+        summary = ReportSummary(
+            market_summary="Market overview text.",
+            common_strengths=["Shared strength"],
+            common_weaknesses=["Shared weakness"],
+            differentiation_opportunities=["Do X differently"],
+        )
+        return ReportDemoResponse(items=items, summary=summary)
+
+    monkeypatch.setattr("app.api.routes.competitors.build_market_report", fake_build)
+    response = client_with_openai.post(
+        "/reportdemo",
+        json={"urls": ["https://a.example", "https://b.example"]},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    sm = data["summary"]
+    assert sm["market_summary"] == "Market overview text."
+    assert sm["common_strengths"] == ["Shared strength"]
+    assert sm["common_weaknesses"] == ["Shared weakness"]
+    assert sm["differentiation_opportunities"] == ["Do X differently"]
 
 
 def test_analyze_competitor_mocked(
