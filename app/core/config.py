@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     )
 
     BRAVE_API_KEY: str = ""
+    BRAVE_BASE_URL: str = "https://api.search.brave.com/res/v1/web/search"
+    HTTP_TIMEOUT: float = 20.0
+
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     APP_ENV: str = "development"

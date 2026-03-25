@@ -4,12 +4,12 @@ Production-подобный **каркас** бэкенда MVP: поиск са
 
 ## Что делает проект
 
-- Поиск кандидатов-конкурентов (план: **Brave Search API**).
-- Фильтрация и классификация сайтов через **LLM** (релевантность, `SiteType`).
+- Поиск кандидатов-конкурентов через **Brave Search API** (`POST /find-competitors`, Discovery v1).
+- Фильтрация и классификация сайтов через **LLM** (релевантность, `SiteType`) — **пока не подключено**.
 - Выбор целей для **парсинга** и **AI-анализа**.
 - Формирование **отчётов** по структурированным инсайтам.
 
-Сейчас в репозитории **нет** реальных вызовов Brave/OpenAI, **нет** БД и **нет** фронтенда — только аккуратная структура FastAPI, Pydantic-модели, заготовки сервисов/клиентов и заглушки эндпоинтов.
+БД и фронтенда нет. OpenAI на этом шаге не используется.
 
 ## Архитектура MVP
 
@@ -49,35 +49,37 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | Метод | Путь | Описание |
 |--------|------|----------|
 | GET | `/health` | Проверка живости: `{"status": "ok"}` |
-| POST | `/find-competitors` | Заглушка: mock `FindCompetitorsResponse` |
+| POST | `/find-competitors` | Brave Search: `query_used`, `raw_results_count`, `filtered_results` (LLM-фильтра нет) |
 | POST | `/analyze-competitors` | Заглушка под будущий анализ |
 
-Пример:
+Пример тела запроса для поиска:
 
 ```bash
-curl -s -X POST http://127.0.0.1:8000/find-competitors -H "Content-Type: application/json" -d "{\"query\": \"crm for small business\", \"max_results\": 10}"
+curl -s -X POST http://127.0.0.1:8000/find-competitors -H "Content-Type: application/json" -d "{\"niche\": \"crm for small business\", \"site_type\": \"landing\", \"region\": \"Россия\", \"max_results\": 10}"
 ```
+
+Без `BRAVE_API_KEY` сервер ответит **503** с понятным сообщением.
 
 ## Что уже сделано
 
 - Приложение FastAPI с `title`, `version`, подключённые роутеры.
-- Настройки через `pydantic-settings` (`BRAVE_API_KEY`, `OPENAI_*`, `APP_ENV`, `LOG_LEVEL`).
+- Настройки через `pydantic-settings` (`BRAVE_API_KEY`, `BRAVE_BASE_URL`, `HTTP_TIMEOUT`, `OPENAI_*`, `APP_ENV`, `LOG_LEVEL`).
+- **Discovery v1:** `BraveSearchClient` (httpx), `discovery_service`, реальный вызов Brave при настроенном ключе.
 - Инициализация логирования при старте приложения (lifespan).
 - Pydantic-схемы и enum `SiteType`.
-- Каркасы **клиентов** и **сервисов** с docstring и `NotImplementedError`, где логика ещё не нужна.
-- Тесты: `/health` и структура ответа `/find-competitors`.
+- Заготовки LLM-клиента и остальных сервисов без боевой логики.
+- Тесты: `/health`, `/find-competitors` с **моком** Brave (без сети).
 
 ## Что планируется дальше
 
-- Реализовать `BraveSearchClient.search_web` и связать `discovery_service` с `/find-competitors`.
-- Реализовать `LLMClient` и `competitor_filter_service` для релевантности и классификации.
+- Подключить `LLMClient` и `competitor_filter_service` для релевантности и уточнения `site_type` по контенту.
 - HTTP-парсинг контента (без Selenium в рамках текущих ограничений).
 - Доработать `analysis_service`, `report_service`, контракты ответов API.
 - По необходимости: аутентификация, rate limiting, наблюдаемость.
 
 ## Конфигурация
 
-Скопируйте `.env.example` в `.env` и задайте ключи, когда подключите реальные интеграции.
+Скопируйте `.env.example` в `.env` и задайте **`BRAVE_API_KEY`** для живого поиска.
 
 ## Тесты
 

@@ -1,39 +1,55 @@
-"""Competitor discovery and analysis API (stub implementations)."""
+"""Competitor discovery and analysis API."""
 
-from fastapi import APIRouter
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.api.dependencies import get_brave_client
+from app.clients.brave_client import BraveSearchClient
+from app.core.config import Settings, get_settings
+from app.core.exceptions import ExternalServiceError
 from app.models.schemas import (
     AnalyzeCompetitorsRequest,
     AnalyzeCompetitorsResponse,
-    CompetitorCandidate,
     FindCompetitorsRequest,
     FindCompetitorsResponse,
 )
-from app.models.enums import SiteType
+from app.services.discovery_service import discover_competitors
 
 router = APIRouter(tags=["competitors"])
 
 
 @router.post("/find-competitors", response_model=FindCompetitorsResponse)
-def find_competitors(body: FindCompetitorsRequest) -> FindCompetitorsResponse:
-    """Stub: returns mock candidates. Real flow will use Brave + discovery service."""
-    mock_candidates = [
-        CompetitorCandidate(
-            url="https://example-competitor-a.com",
-            title=f"Mock result for: {body.query}",
-            snippet="Placeholder snippet from scaffold.",
-            site_type=SiteType.multi_page_service_site,
-        ),
-        CompetitorCandidate(
-            url="https://example-competitor-b.com",
-            title=f"Another mock for: {body.query}",
-            snippet="Second placeholder result.",
-            site_type=SiteType.landing,
-        ),
-    ]
+def find_competitors(
+    body: FindCompetitorsRequest,
+    settings: Annotated[Settings, Depends(get_settings)],
+    brave_client: Annotated[BraveSearchClient, Depends(get_brave_client)],
+) -> FindCompetitorsResponse:
+    """Discover competitor sites via Brave Search (no LLM filter in v1)."""
+    if not (settings.BRAVE_API_KEY or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="BRAVE_API_KEY is not configured. Set it in the environment or .env file.",
+        )
+
+    try:
+        query_used, raw_results_count, filtered = discover_competitors(
+            brave_client,
+            niche=body.niche,
+            site_type=body.site_type,
+            region=body.region,
+            count=body.max_results,
+        )
+    except ExternalServiceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
     return FindCompetitorsResponse(
-        query=body.query,
-        candidates=mock_candidates,
+        query_used=query_used,
+        raw_results_count=raw_results_count,
+        filtered_results=filtered,
     )
 
 
@@ -42,6 +58,6 @@ def analyze_competitors(body: AnalyzeCompetitorsRequest) -> AnalyzeCompetitorsRe
     """Stub: placeholder for future parsing + AI analysis pipeline."""
     return AnalyzeCompetitorsResponse(
         message="Analysis not implemented yet (scaffold).",
-        analyzed_urls=list(body.urls),
+        analyzed_urls=[str(u) for u in body.urls],
         summary=None,
     )

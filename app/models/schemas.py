@@ -6,23 +6,24 @@ from app.models.enums import SiteType
 
 
 class FindCompetitorsRequest(BaseModel):
-    query: str = Field(..., min_length=1, description="Search query / product description")
+    niche: str = Field(..., min_length=1, description="Niche / product / service wording for search")
+    site_type: SiteType = Field(..., description="Target site shape to include in the built query")
+    region: str | None = Field(default=None, description="Optional region or country name")
     max_results: int = Field(default=10, ge=1, le=50)
 
 
 class CompetitorCandidate(BaseModel):
-    url: HttpUrl
-    title: str | None = None
-    snippet: str | None = None
-    site_type: SiteType | None = Field(
-        default=None,
-        description="LLM- or rule-based classification (optional in early pipeline).",
-    )
+    title: str = Field(..., description="Result title from search")
+    url: str = Field(..., description="Canonical result URL")
+    description: str = Field(default="", description="Snippet / description from search")
+    site_type: SiteType
+    source: str = Field(..., description="Origin of the hit, e.g. brave")
 
 
 class FindCompetitorsResponse(BaseModel):
-    query: str
-    candidates: list[CompetitorCandidate]
+    query_used: str
+    raw_results_count: int
+    filtered_results: list[CompetitorCandidate]
 
 
 class AnalyzeCompetitorsRequest(BaseModel):
