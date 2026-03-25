@@ -12,11 +12,14 @@ from app.core.exceptions import ExternalServiceError, ParsingError
 from app.models.schemas import (
     AnalyzeCompetitorsRequest,
     AnalyzeCompetitorsResponse,
+    CompetitorAnalysisRequest,
+    CompetitorAnalysisResponse,
     FindCompetitorsRequest,
     FindCompetitorsResponse,
     ParseDemoRequest,
     ParseDemoResponse,
 )
+from app.services.analysis_service import analyze_competitor_page
 from app.services.competitor_filter_service import filter_competitors_with_llm
 from app.services.discovery_service import discover_competitors
 from app.services.parsing_service import parse_page
@@ -90,6 +93,43 @@ def parse_demo(
             detail=str(exc),
         ) from exc
     return ParseDemoResponse(result=result)
+
+
+@router.post("/analyze-competitor", response_model=CompetitorAnalysisResponse)
+def analyze_competitor(
+    body: CompetitorAnalysisRequest,
+    settings: Annotated[Settings, Depends(get_settings)],
+    llm_client: Annotated[LLMClient, Depends(get_llm_client)],
+) -> CompetitorAnalysisResponse:
+    """Fetch page via Selenium, then LLM analysis (text fields only; no vision)."""
+    if not (settings.OPENAI_API_KEY or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OPENAI_API_KEY is not configured. AI analysis requires an LLM API key.",
+        )
+    if not body.use_parsing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="use_parsing=false is not supported in v1; supply use_parsing=true.",
+        )
+
+    try:
+        parsed = parse_page(body.url, settings)
+    except ParsingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+    try:
+        result = analyze_competitor_page(llm_client, parsed)
+    except ExternalServiceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+    return CompetitorAnalysisResponse(result=result)
 
 
 @router.post("/analyze-competitors", response_model=AnalyzeCompetitorsResponse)

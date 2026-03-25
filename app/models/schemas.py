@@ -52,3 +52,31 @@ class ParsedPageData(BaseModel):
 
 class ParseDemoResponse(BaseModel):
     result: ParsedPageData
+
+
+class CompetitorAnalysisRequest(BaseModel):
+    url: str = Field(..., min_length=1, description="Page URL to fetch and analyze")
+    use_parsing: bool = Field(default=True, description="When true, Selenium fetch runs first (v1 only supports true)")
+
+
+class CompetitorAnalysisResult(BaseModel):
+    url: str
+    final_url: str
+    title: str
+    positioning: str
+    offer: str
+    target_audience: str
+    strengths: list[str]
+    weaknesses: list[str]
+    design_score: float = Field(..., ge=0.0, le=10.0, description="0–10: inferred visual polish from text structure and offer")
+    animation_potential: float = Field(
+        ...,
+        ge=0.0,
+        le=10.0,
+        description="0–10: room to improve via motion / dynamic presentation",
+    )
+    summary: str
+
+
+class CompetitorAnalysisResponse(BaseModel):
+    result: CompetitorAnalysisResult

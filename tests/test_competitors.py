@@ -10,7 +10,11 @@ from app.clients.brave_client import BraveSearchClient
 from app.core.config import Settings
 from app.main import app
 from app.models.enums import SiteType
-from app.models.schemas import CompetitorCandidate, ParsedPageData
+from app.models.schemas import (
+    CompetitorAnalysisResult,
+    CompetitorCandidate,
+    ParsedPageData,
+)
 from app.services import competitor_filter_service
 
 _TEST_SETTINGS = Settings(
@@ -148,6 +152,69 @@ def test_filter_competitors_with_llm_empty_candidates() -> None:
         )
         == []
     )
+
+
+@pytest.fixture
+def client_with_openai():
+    settings = _TEST_SETTINGS.model_copy(update={"OPENAI_API_KEY": "sk-test"})
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_brave_client] = lambda: _FakeBrave()  # type: ignore[return-value]
+    app.dependency_overrides[get_llm_client] = lambda: _FakeLLM()  # type: ignore[return-value]
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+def test_analyze_competitor_mocked(
+    client_with_openai: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parsed = ParsedPageData(
+        requested_url="https://shop.example",
+        final_url="https://shop.example/",
+        title="Shop",
+        meta_description="We sell tools",
+        h1="Tools",
+        visible_text="Buy quality tools here.",
+        screenshot_path=None,
+    )
+
+    def fake_parse(u: str, settings: Settings) -> ParsedPageData:
+        assert u == "https://shop.example"
+        return parsed
+
+    def fake_analyze(llm: Any, data: ParsedPageData) -> CompetitorAnalysisResult:
+        assert data.title == "Shop"
+        return CompetitorAnalysisResult(
+            url=data.requested_url,
+            final_url=data.final_url,
+            title=data.title,
+            positioning="Niche tools seller",
+            offer="Quality tools",
+            target_audience="DIY",
+            strengths=["Clear h1"],
+            weaknesses=["Little detail"],
+            design_score=6.5,
+            animation_potential=7.0,
+            summary="Short practical summary.",
+        )
+
+    monkeypatch.setattr("app.api.routes.competitors.parse_page", fake_parse)
+    monkeypatch.setattr("app.api.routes.competitors.analyze_competitor_page", fake_analyze)
+
+    response = client_with_openai.post(
+        "/analyze-competitor",
+        json={"url": "https://shop.example", "use_parsing": True},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "result" in body
+    r = body["result"]
+    assert r["positioning"] == "Niche tools seller"
+    assert r["offer"] == "Quality tools"
+    assert r["target_audience"] == "DIY"
+    assert r["design_score"] == 6.5
+    assert r["animation_potential"] == 7.0
 
 
 def test_parsedemo_returns_mocked_result(client_no_llm: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
