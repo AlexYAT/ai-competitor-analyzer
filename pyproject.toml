@@ -1,0 +1,11 @@
+[project]
+name = "ai-competitor-analyzer"
+version = "0.1.0"
+description = "AI Competitor Analyzer — FastAPI MVP scaffold"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
