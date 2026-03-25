@@ -76,7 +76,24 @@ python -m app.desktop.main
 
 **Возможности:** две вкладки — Find Competitors (ниша, тип сайта, регион, лимит) и Report Demo (URL построчно, язык отчёта по умолчанию как в API — `ru`). Синхронные вызовы, без прогресса — допустимо для MVP.
 
-**Ограничения:** это не полноценный продукт, а тонкий GUI поверх оркестрации; без PyInstaller, без фоновых потоков в этой версии.
+**Ограничения:** тонкий GUI поверх оркестрации; без фоновых потоков в этой версии.
+
+### Desktop Build (PyInstaller, v1)
+
+Собранное приложение — тот же `app/desktop/main.py`, режим **onedir**, без консоли (**--windowed**), имя артефакта: **competitionmonitor**.
+
+**Сборка** (из корня `ai-competitor-analyzer`, с установленными зависимостями):
+
+```powershell
+pip install -r requirements.txt
+python build.py
+```
+
+**Результат:** каталог `dist/competitionmonitor/` (на Windows исполняемый файл `competitionmonitor.exe` внутри).
+
+**Запуск:** открыть `dist/competitionmonitor/competitionmonitor.exe` (или `./competitionmonitor` на Linux/macOS). Конфиг по-прежнему из переменных окружения и/или файла **`.env` в текущей рабочей директории** при старте процесса — при необходимости положите `.env` рядом с exe или задайте ключи в системе (автокопирование `.env` в сборку не делается).
+
+**Ограничения сборки v1:** учебно-практичный pipeline, не production installer. Для вкладки **Report Demo** (Selenium) на машине пользователя обычно нужен **установленный Chrome (Chromium)**; Selenium 4 может подтянуть драйвер через Selenium Manager, но это зависит от ОС и сети. Brave/OpenAI ключи — как у dev-запуска.
 
 ## Эндпоинты
 
