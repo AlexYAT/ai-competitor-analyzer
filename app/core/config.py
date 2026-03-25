@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    OPENAI_MODEL: str = "gpt-4o-mini"
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
 

@@ -1,20 +1,24 @@
-"""Tests for competitor discovery (Brave mocked)."""
+"""Tests for competitor discovery (Brave + optional LLM mocked)."""
 
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.dependencies import get_brave_client, get_settings
+from app.api.dependencies import get_brave_client, get_llm_client, get_settings
 from app.clients.brave_client import BraveSearchClient
 from app.core.config import Settings
 from app.main import app
 from app.models.enums import SiteType
+from app.models.schemas import CompetitorCandidate
+from app.services import competitor_filter_service
 
 _TEST_SETTINGS = Settings(
     BRAVE_API_KEY="test-key",
     BRAVE_BASE_URL="https://api.search.brave.com/res/v1/web/search",
     HTTP_TIMEOUT=20.0,
+    OPENAI_API_KEY="",
+    OPENAI_MODEL="gpt-4o-mini",
 )
 
 
@@ -41,30 +45,50 @@ class _FakeBrave:
         return _mock_brave_payload()
 
 
+class _FakeLLM:
+    def chat_json(self, system_prompt: str, user_prompt: str) -> dict[str, Any]:
+        return {"selected_indices": [1]}
+
+
 @pytest.fixture
-def client():
+def client_no_llm():
     app.dependency_overrides[get_settings] = lambda: _TEST_SETTINGS
     app.dependency_overrides[get_brave_client] = lambda: _FakeBrave()  # type: ignore[return-value]
+    app.dependency_overrides[get_llm_client] = lambda: _FakeLLM()  # type: ignore[return-value]
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
 
 
-def test_find_competitors_returns_200_and_structure(client: TestClient) -> None:
+@pytest.fixture
+def client_with_llm():
+    settings = _TEST_SETTINGS.model_copy(update={"OPENAI_API_KEY": "sk-test"})
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_brave_client] = lambda: _FakeBrave()  # type: ignore[return-value]
+
+    class SubsetLLM:
+        def chat_json(self, system_prompt: str, user_prompt: str) -> dict[str, Any]:
+            return {"selected_indices": [0]}
+
+    app.dependency_overrides[get_llm_client] = lambda: SubsetLLM()  # type: ignore[return-value]
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+def test_find_competitors_no_openai_key_uses_raw_candidates(client_no_llm: TestClient) -> None:
     payload = {
         "niche": "project management saas",
         "site_type": SiteType.landing.value,
         "region": "EU",
         "max_results": 5,
     }
-    response = client.post("/find-competitors", json=payload)
+    response = client_no_llm.post("/find-competitors", json=payload)
     assert response.status_code == 200
     data = response.json()
     assert "query_used" in data
-    assert isinstance(data["query_used"], str)
     assert "landing" in data["query_used"]
     assert "EU" in data["query_used"]
-
     assert data["raw_results_count"] == 3
 
     fr = data["filtered_results"]
@@ -77,7 +101,23 @@ def test_find_competitors_returns_200_and_structure(client: TestClient) -> None:
     assert first["site_type"] == SiteType.landing.value
 
 
-def test_find_competitors_without_api_key() -> None:
+def test_find_competitors_with_openai_key_applies_llm_filter(client_with_llm: TestClient) -> None:
+    payload = {
+        "niche": "yoga instructor",
+        "site_type": SiteType.landing.value,
+        "max_results": 5,
+    }
+    response = client_with_llm.post("/find-competitors", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["raw_results_count"] == 3
+    fr = data["filtered_results"]
+    assert len(fr) == 1
+    assert fr[0]["url"] == "https://alpha.example/"
+    assert fr[0]["source"] == "brave"
+
+
+def test_find_competitors_without_brave_api_key() -> None:
     empty_settings = Settings(
         BRAVE_API_KEY="",
         BRAVE_BASE_URL="https://api.search.brave.com/res/v1/web/search",
@@ -85,6 +125,7 @@ def test_find_competitors_without_api_key() -> None:
     )
     app.dependency_overrides[get_settings] = lambda: empty_settings
     app.dependency_overrides[get_brave_client] = lambda: BraveSearchClient(empty_settings)
+    app.dependency_overrides[get_llm_client] = lambda: _FakeLLM()  # type: ignore[return-value]
 
     with TestClient(app) as test_client:
         payload = {
@@ -98,3 +139,42 @@ def test_find_competitors_without_api_key() -> None:
 
     assert response.status_code == 503
     assert "BRAVE_API_KEY" in response.json()["detail"]
+
+
+def test_filter_competitors_with_llm_empty_candidates() -> None:
+    assert (
+        competitor_filter_service.filter_competitors_with_llm(
+            _FakeLLM(), "n", SiteType.landing, None, []
+        )
+        == []
+    )
+
+
+def test_filter_competitors_with_llm_parses_indices() -> None:
+    candidates = [
+        CompetitorCandidate(
+            title="A",
+            url="https://a.com",
+            description="",
+            site_type=SiteType.landing,
+            source="brave",
+        ),
+        CompetitorCandidate(
+            title="B",
+            url="https://b.com",
+            description="",
+            site_type=SiteType.landing,
+            source="brave",
+        ),
+    ]
+
+    class LLM:
+        def chat_json(self, system_prompt: str, user_prompt: str) -> dict[str, Any]:
+            return {"selected_indices": [1, 99, 1, 0]}
+
+    out = competitor_filter_service.filter_competitors_with_llm(
+        LLM(), "niche", SiteType.landing, "RU", candidates
+    )
+    assert len(out) == 2
+    assert out[0].url == "https://b.com"
+    assert out[1].url == "https://a.com"
