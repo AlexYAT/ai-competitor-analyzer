@@ -107,10 +107,12 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("AI Competitor Analyzer — Desktop")
         self.resize(880, 640)
 
-        tabs = QTabWidget()
-        tabs.addTab(self._build_find_tab(), "Find Competitors")
-        tabs.addTab(self._build_report_tab(), "Report Demo")
-        self.setCentralWidget(tabs)
+        self.last_find_response: FindCompetitorsResponse | None = None
+
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self._build_find_tab(), "Find Competitors")
+        self.tabs.addTab(self._build_report_tab(), "Report Demo")
+        self.setCentralWidget(self.tabs)
 
     def _build_find_tab(self) -> QWidget:
         w = QWidget()
@@ -147,9 +149,15 @@ class MainWindow(QMainWindow):
         max_row.addStretch()
         layout.addLayout(max_row)
 
-        btn = QPushButton("Find Competitors")
-        btn.clicked.connect(self._on_find_competitors)
-        layout.addWidget(btn)
+        find_btn_row = QHBoxLayout()
+        btn_find = QPushButton("Find Competitors")
+        btn_find.clicked.connect(self._on_find_competitors)
+        find_btn_row.addWidget(btn_find)
+        btn_send = QPushButton("Send all to Report")
+        btn_send.clicked.connect(self._on_send_all_to_report)
+        find_btn_row.addWidget(btn_send)
+        find_btn_row.addStretch()
+        layout.addLayout(find_btn_row)
 
         self.find_output = QTextEdit()
         self.find_output.setReadOnly(True)
@@ -193,6 +201,7 @@ class MainWindow(QMainWindow):
         )
         try:
             resp = run_find_competitors(settings, brave, llm, body)
+            self.last_find_response = resp
             self.find_output.setPlainText(format_find_competitors_response(resp))
         except ConfigurationError as exc:
             QMessageBox.critical(self, "Configuration", str(exc))
@@ -204,6 +213,41 @@ class MainWindow(QMainWindow):
                 "Error",
                 f"{type(exc).__name__}: {exc}",
             )
+
+    def _on_send_all_to_report(self) -> None:
+        if (
+            self.last_find_response is None
+            or not self.last_find_response.filtered_results
+        ):
+            QMessageBox.information(
+                self,
+                "Nothing to send",
+                "Run Find Competitors first and ensure the result list is not empty.",
+            )
+            return
+
+        seen_lower: set[str] = set()
+        lines: list[str] = []
+        for cand in self.last_find_response.filtered_results:
+            url = (cand.url or "").strip()
+            if not url:
+                continue
+            key = url.lower()
+            if key in seen_lower:
+                continue
+            seen_lower.add(key)
+            lines.append(url)
+
+        if not lines:
+            QMessageBox.warning(
+                self,
+                "No URLs",
+                "The last search result has no usable URLs.",
+            )
+            return
+
+        self.report_urls.setPlainText("\n".join(lines))
+        self.tabs.setCurrentIndex(1)
 
     def _on_build_report(self) -> None:
         text = self.report_urls.toPlainText()
