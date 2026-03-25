@@ -1,13 +1,13 @@
 # AI Competitor Analyzer
 
-Production-подобный **каркас** бэкенда MVP: поиск сайтов-конкурентов, LLM-фильтрация, подготовка к парсингу и AI-анализу.
+Production-подобный **каркас** бэкенда MVP: поиск сайтов-конкурентов, LLM-фильтрация, парсинг, подготовка к AI-анализу.
 
 ## Что делает проект
 
 - Поиск кандидатов-конкурентов через **Brave Search API** (`POST /find-competitors`, Discovery v1).
 - **LLM Filter v1:** после Brave результаты можно сузить через OpenAI-compatible Chat Completions (`OPENAI_API_KEY`). Без ключа отдаются сырые кандидаты Brave (fallback).
-- Выбор целей для **парсинга** и **AI-анализа** (отдельные шаги).
-- Формирование **отчётов** по структурированным инсайтам — в планах.
+- **Selenium Parsing v1:** демо-эндпоинт `POST /parsedemo` — открытие страницы в headless Chrome, сбор **title**, **meta description**, **первый h1**, **видимого текста** (с лимитом длины) и **скриншота** (PNG в `PARSED_SCREENSHOTS_DIR`).
+- Расширенный **AI-анализ** и отчёты — в планах.
 
 БД и фронтенда нет.
 
@@ -17,7 +17,7 @@ Production-подобный **каркас** бэкенда MVP: поиск са
 
 ## Запуск локально
 
-Требования: Python 3.11+.
+Требования: Python 3.11+ и **Google Chrome** (или Chromium) на машине для реального вызова `/parsedemo`.
 
 ```bash
 cd ai-competitor-analyzer
@@ -50,37 +50,42 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 |--------|------|-------------|
 | GET | `/health` | Проверка живости: `{"status": "ok"}` |
 | POST | `/find-competitors` | Brave → опционально LLM-фильтр → `query_used`, `raw_results_count`, `filtered_results` |
+| POST | `/parsedemo` | Selenium: разбор страницы + скриншот (`result`: title, meta, h1, visible_text, screenshot_path) |
 | POST | `/analyze-competitors` | Заглушка под будущий анализ |
 
-Пример тела запроса для поиска:
+Пример поиска:
 
 ```bash
 curl -s -X POST http://127.0.0.1:8000/find-competitors -H "Content-Type: application/json" -d "{\"niche\": \"crm for small business\", \"site_type\": \"landing\", \"region\": \"Россия\", \"max_results\": 10}"
 ```
 
-- Без `BRAVE_API_KEY` — ответ **503**.
-- Без `OPENAI_API_KEY` — `filtered_results` совпадает с нормализованным списком Brave (после дедупа в discovery).
-- С обоими ключами — `filtered_results` проходит через LLM (ошибка LLM → **502**).
+Пример парсинга (нужен локальный Chrome / driver):
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/parsedemo -H "Content-Type: application/json" -d "{\"url\": \"https://example.com\"}"
+```
+
+- Без `BRAVE_API_KEY` на `/find-competitors` — **503**.
+- Без `OPENAI_API_KEY` — `filtered_results` без LLM-фильтра.
+- Ошибка Selenium / таймаут на `/parsedemo` — **502** с текстом ошибки.
 
 ## Что уже сделано
 
 - Приложение FastAPI с `title`, `version`, подключённые роутеры.
-- Настройки через `pydantic-settings` (`BRAVE_*`, `OPENAI_*`, `HTTP_TIMEOUT`, `APP_ENV`, `LOG_LEVEL`).
-- **Discovery v1:** `BraveSearchClient`, `discovery_service`.
-- **LLM Filter v1:** `LLMClient.chat_json`, `filter_competitors_with_llm`, опциональный шаг в `/find-competitors`.
+- Настройки через `pydantic-settings` (Brave, OpenAI, HTTP, **Selenium**, скриншоты, `APP_ENV`, `LOG_LEVEL`).
+- **Discovery v1**, **LLM Filter v1**, **Selenium Parsing v1** (`parse_page`, `/parsedemo`).
 - Инициализация логирования при старте приложения (lifespan).
 - Pydantic-схемы и enum `SiteType`.
-- Тесты: без реальных Brave/OpenAI вызовов.
+- Тесты: без реальных Brave/OpenAI/**браузера** (моки).
 
 ## Что планируется дальше
 
-- HTTP-парсинг контента (без Selenium в рамках текущих ограничений).
-- Расширенный анализ сайтов и `analysis_service`, `report_service`.
+- Расширенный анализ контента и отчёты (`analysis_service`, `report_service`).
 - По необходимости: аутентификация, rate limiting, наблюдаемость.
 
 ## Конфигурация
 
-Скопируйте `.env.example` в `.env`. Для живого поиска нужен **`BRAVE_API_KEY`**. Для LLM-фильтра — **`OPENAI_API_KEY`** (и при необходимости `OPENAI_BASE_URL`, `OPENAI_MODEL`).
+Скопируйте `.env.example` в `.env`. Для поиска — `BRAVE_API_KEY`, для LLM — `OPENAI_API_KEY`. Для Selenium см. переменные `SELENIUM_*` и `PARSED_SCREENSHOTS_DIR`.
 
 ## Тесты
 

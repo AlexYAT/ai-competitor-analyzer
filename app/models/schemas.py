@@ -34,3 +34,21 @@ class AnalyzeCompetitorsResponse(BaseModel):
     message: str
     analyzed_urls: list[str]
     summary: str | None = None
+
+
+class ParseDemoRequest(BaseModel):
+    url: str = Field(..., min_length=1, description="Page URL to open in the browser")
+
+
+class ParsedPageData(BaseModel):
+    requested_url: str
+    final_url: str
+    title: str
+    meta_description: str | None
+    h1: str | None
+    visible_text: str
+    screenshot_path: str | None
+
+
+class ParseDemoResponse(BaseModel):
+    result: ParsedPageData

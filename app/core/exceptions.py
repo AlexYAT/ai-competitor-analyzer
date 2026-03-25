@@ -9,6 +9,10 @@ class ExternalServiceError(AppError):
     """Raised when an external API (Brave, LLM, etc.) fails."""
 
 
+class ParsingError(AppError):
+    """Raised when Selenium / page extraction fails."""
+
+
 class ConfigurationError(AppError):
     """Raised when required app configuration is missing or invalid."""
 

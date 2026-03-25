@@ -12,7 +12,7 @@ User Input → Brave Search → LLM Filter → Selection → Parsing → AI Anal
 2. **Brave Search** — `BraveSearchClient` / `discovery_service` fetch candidate URLs and snippets.
 3. **LLM Filter** — `LLMClient` / `competitor_filter_service` drop irrelevant hits and classify `SiteType`.
 4. **Selection** — User or rules choose URLs for deep analysis (future endpoint or parameter).
-5. **Parsing** — `parsing_service` extracts text and metadata (HTTP + parser; no Selenium in scope).
+5. **Parsing** — `parsing_service.parse_page` (Selenium v1: title, meta, h1, visible text, screenshot).
 6. **AI Analysis** — `analysis_service` produces structured insights per competitor.
 7. **Report** — `report_service` formats summaries or exports for API consumers.
 

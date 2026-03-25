@@ -37,3 +37,6 @@ build/
 
 # Logs
 *.log
+
+# Selenium screenshots
+data/screenshots/

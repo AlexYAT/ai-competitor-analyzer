@@ -10,7 +10,7 @@ from app.clients.brave_client import BraveSearchClient
 from app.core.config import Settings
 from app.main import app
 from app.models.enums import SiteType
-from app.models.schemas import CompetitorCandidate
+from app.models.schemas import CompetitorCandidate, ParsedPageData
 from app.services import competitor_filter_service
 
 _TEST_SETTINGS = Settings(
@@ -148,6 +148,31 @@ def test_filter_competitors_with_llm_empty_candidates() -> None:
         )
         == []
     )
+
+
+def test_parsedemo_returns_mocked_result(client_no_llm: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_parse(url: str, settings: Settings) -> ParsedPageData:
+        assert url.startswith("http")
+        return ParsedPageData(
+            requested_url="https://example.com",
+            final_url="https://example.com/",
+            title="Example",
+            meta_description=None,
+            h1="Main",
+            visible_text="Some visible content here.",
+            screenshot_path="data/screenshots/test.png",
+        )
+
+    monkeypatch.setattr("app.api.routes.competitors.parse_page", fake_parse)
+    response = client_no_llm.post("/parsedemo", json={"url": "https://example.com"})
+    assert response.status_code == 200
+    data = response.json()
+    assert "result" in data
+    r = data["result"]
+    assert r["requested_url"] == "https://example.com"
+    assert r["final_url"] == "https://example.com/"
+    assert r["title"] == "Example"
+    assert r["visible_text"] == "Some visible content here."
 
 
 def test_filter_competitors_with_llm_parses_indices() -> None:

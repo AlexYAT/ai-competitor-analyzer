@@ -8,15 +8,18 @@ from app.api.dependencies import get_brave_client, get_llm_client
 from app.clients.brave_client import BraveSearchClient
 from app.clients.llm_client import LLMClient
 from app.core.config import Settings, get_settings
-from app.core.exceptions import ExternalServiceError
+from app.core.exceptions import ExternalServiceError, ParsingError
 from app.models.schemas import (
     AnalyzeCompetitorsRequest,
     AnalyzeCompetitorsResponse,
     FindCompetitorsRequest,
     FindCompetitorsResponse,
+    ParseDemoRequest,
+    ParseDemoResponse,
 )
 from app.services.competitor_filter_service import filter_competitors_with_llm
 from app.services.discovery_service import discover_competitors
+from app.services.parsing_service import parse_page
 
 router = APIRouter(tags=["competitors"])
 
@@ -71,6 +74,22 @@ def find_competitors(
         raw_results_count=raw_results_count,
         filtered_results=filtered_results,
     )
+
+
+@router.post("/parsedemo", response_model=ParseDemoResponse)
+def parse_demo(
+    body: ParseDemoRequest,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ParseDemoResponse:
+    """Demo: Selenium fetch — title, meta description, h1, visible text, screenshot."""
+    try:
+        result = parse_page(body.url, settings)
+    except ParsingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+    return ParseDemoResponse(result=result)
 
 
 @router.post("/analyze-competitors", response_model=AnalyzeCompetitorsResponse)
