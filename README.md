@@ -30,7 +30,7 @@ Production-подобный **каркас** бэкенда MVP: поиск ко
 
 ## Архитектура MVP
 
-[docs/architecture.md](docs/architecture.md)
+[docs/architecture.md](docs/architecture.md) · [описание промптов и моделей для отчёта по курсу](docs/prompt-engineering-course.md)
 
 ## Запуск локально
 
