@@ -225,7 +225,7 @@ def test_reportdemo_mocked(
         )
         return ReportDemoResponse(items=items, summary=summary)
 
-    monkeypatch.setattr("app.api.routes.competitors.build_market_report", fake_build)
+    monkeypatch.setattr("app.services.orchestration.build_market_report", fake_build)
     response = client_with_openai.post(
         "/reportdemo",
         json={"urls": ["https://a.example", "https://b.example"]},
@@ -264,7 +264,7 @@ def test_reportdemo_accepts_lang_and_passes_to_build(
             ),
         )
 
-    monkeypatch.setattr("app.api.routes.competitors.build_market_report", fake_build)
+    monkeypatch.setattr("app.services.orchestration.build_market_report", fake_build)
     r1 = client_with_openai.post("/reportdemo", json={"urls": ["https://a.example"], "lang": "en"})
     assert r1.status_code == 200
     assert captured["lang"] == "en"

@@ -14,7 +14,7 @@ User Input → Brave Search → LLM Filter → Selection → Parsing → AI Anal
 4. **Selection** — User or rules choose URLs for deep analysis (future endpoint or parameter).
 5. **Parsing** — `parsing_service.parse_page` (Selenium v1: title, meta, h1, visible text, screenshot).
 6. **AI Analysis** — `analysis_service` produces structured insights per competitor.
-7. **Report** — `report_service.build_market_report` (`/reportdemo`): per-URL parse+analyze, then LLM market summary; язык генерации задаётся полем `lang` запроса (по умолчанию `ru`).
+7. **Report** — `orchestration.run_report_demo` → `report_service.build_market_report` (эндпоинт `/reportdemo`): per-URL parse+analyze, затем market summary; поле `lang` (по умолчанию `ru`). Та же функция вызывается из desktop без HTTP.
 
 ## Layers
 
@@ -23,6 +23,7 @@ User Input → Brave Search → LLM Filter → Selection → Parsing → AI Anal
 - **`app/models`** — Pydantic schemas and enums.
 - **`app/clients`** — External APIs (Brave, LLM); thin adapters.
 - **`app/services`** — Use cases orchestrating clients and models.
+- **`app/services/orchestration.py`** — тонкий слой: `run_find_competitors`, `run_report_demo` (общий для FastAPI и desktop).
 - **`app/utils`** — Small pure helpers.
 
 No database in the current scaffold; stateless request/response workflows only.
