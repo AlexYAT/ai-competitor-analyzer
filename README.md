@@ -9,7 +9,7 @@ Production-подобный **каркас** бэкенда MVP: поиск ко
 - **Анализ одной страницы:** `POST /analyze-competitor` (Selenium + LLM по тексту).
 - **Сводный market-отчёт (v1):** `POST /reportdemo` — для списка URL выполняется полный цикл **parse → analyze на каждый сайт**, затем **второй вызов LLM** строит обобщение по рынку: общие сильные/слабые стороны и идеи дифференциации.
 
-БД, desktop и PDF/DOCX нет.
+БД и PDF/DOCX нет. Есть минимальный **desktop** на PyQt6 (см. ниже).
 
 ### Структура `POST /reportdemo`
 
@@ -58,9 +58,25 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - **Поиск:** `POST /find-competitors` (ниша, `site_type`, опционально регион, `max_results`)
 - **Отчёт по выбранным URL:** `POST /reportdemo` (тяжёлый: Selenium + LLM на каждый URL)
 
-Отдельного adapter/orchestration endpoint для UI **не добавлялось**.
+Демо desktop вызывает **orchestration** (`run_find_competitors`, `run_report_demo`) напрямую, без HTTP.
 
 **Контракт UI:** интерфейс рассчитан на **API contract v1** для ответов `POST /find-competitors` и `POST /reportdemo` (поля вроде `filtered_results`, `query_used`, `items`, `summary`). При изменении схем ответов нужно синхронно править `static/app.js`.
+
+## Desktop Demo (PyQt6)
+
+Минимальная оболочка для демонстрации тех же use-cases, что и API: поиск конкурентов и построение market-отчёта по списку URL. Логика — те же `Settings`, клиенты и **orchestration**; HTTP и FastAPI не используются.
+
+**Установка:** зависимости уже в `requirements.txt` (`pip install -r requirements.txt`). Нужны рабочие ключи в `.env` (Brave для поиска; OpenAI для отчёта и опционально для LLM-фильтра; Chrome для Selenium на вкладке «Report Demo»).
+
+**Запуск** (из корня `ai-competitor-analyzer`, чтобы подхватился `.env`):
+
+```powershell
+python -m app.desktop.main
+```
+
+**Возможности:** две вкладки — Find Competitors (ниша, тип сайта, регион, лимит) и Report Demo (URL построчно, язык отчёта по умолчанию как в API — `ru`). Синхронные вызовы, без прогресса — допустимо для MVP.
+
+**Ограничения:** это не полноценный продукт, а тонкий GUI поверх оркестрации; без PyInstaller, без фоновых потоков в этой версии.
 
 ## Эндпоинты
 
